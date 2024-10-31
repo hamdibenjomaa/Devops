@@ -1,0 +1,90 @@
+pipeline {
+    agent any
+
+    tools {
+        maven 'M2_HOME'
+    }
+
+    stages {
+        stage('Checkout Git repository') {
+            steps {
+                echo 'Pulling'
+                git branch: 'mehdi', credentialsId: '123', url: 'https://github.com/Beyskander2040/DevOps-Project.git'
+            }
+        }
+
+        stage('Maven Clean Compile') {
+            steps {
+                sh 'mvn clean'
+                echo 'Running Maven Compile'
+                sh 'mvn compile'
+            }
+        }
+
+        stage('Maven Install') {
+                    steps {
+                        sh 'mvn install'
+                    }
+                }
+
+        stage('Build package') {
+                    steps {
+                        sh 'mvn package'
+                    }
+                }
+
+        stage('Tests - JUnit/Mockito') {
+            steps {
+                sh 'mvn test'
+            }
+        }
+
+        stage('SonarQube Analysis') {
+            steps {
+                sh 'mvn clean verify sonar:sonar \
+                    -Dsonar.host.url=http://192.168.1.14:9000 \
+                    -Dsonar.login=squ_41350b131d500a68162f170815a1a445e13f8b1c'
+            }
+        }
+
+        stage('Deploy to Nexus') {
+           steps {
+                sh 'mvn deploy -DskipTests'
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                // Build the Docker image and tag it with the repository name
+                sh 'docker build -t abidmehdi/my-image:latest .'
+            }
+        }
+
+         stage('Login to Docker Hub') {
+            steps {
+                // Use Docker Hub credentials stored in Jenkins
+               withCredentials([usernamePassword(credentialsId: 'mehdiabid', usernameVariable: 'DOCKERHUB_CREDENTIALS_USR', passwordVariable: 'DOCKERHUB_CREDENTIALS_PSW')]) {
+                   sh "docker login -u ${DOCKERHUB_CREDENTIALS_USR} -p ${DOCKERHUB_CREDENTIALS_PSW}"
+               }
+           }
+        }
+
+
+       stage('Push Docker Image to Docker Hub') {
+           steps {
+               // Push the tagged Docker image to Docker Hub
+               sh 'docker push abidmehdi/my-image:latest'
+            }
+       }
+
+       stage('Deploy with Docker Compose') {
+              steps {
+                        script {
+                            // Assurez-vous que vous êtes dans le répertoire contenant le fichier docker-compose.yml
+                                // Exécutez docker-compose up -d
+                                sh 'docker-compose -f docker-compose.yml up -d'
+                        }
+              }
+       }
+    }
+}
